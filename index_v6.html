@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMM v6</title>
+    <!-- Biblioteka Socket.IO (klient) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <!-- Biblioteka Chart.js (Feat. 1) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <!-- Biblioteka Xterm.js (Feat. 8) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xterm-addon-fit/0.9.0/xterm-addon-fit.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --primary-hover: #0056b3;
+            --danger-color: #dc3545;
+            --danger-hover: #a71d2a;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --sidebar-width: 240px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* --- Sidebar / Nawigacja --- */
+        #sidebar {
+            width: var(--sidebar-width);
+            background: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+            transition: width 0.3s;
+        }
+        #sidebar-header {
+            padding: 0 20px;
+            text-align: center;
+        }
+        #sidebar-header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #fff;
+        }
+        #sidebar-nav {
+            flex-grow: 1;
+            margin-top: 30px;
+        }
+        #sidebar-nav .nav-link {
+            display: block;
+            padding: 12px 20px;
+            color: #bdc3c7;
+            text-decoration: none;
+            border-left: 4px solid transparent;
+            transition: background 0.2s, color 0.2s;
+        }
+        #sidebar-nav .nav-link:hover {
+            background: #34495e;
+            color: #fff;
+        }
+        #sidebar-nav .nav-link.active {
+            background: #34495e;
+            color: #fff;
+            border-left-color: var(--primary-color);
+        }
+        #sidebar-footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        #user-info { color: #fff; }
+        
+        /* --- Główna Zawartość --- */
+        #main-content {
+            flex-grow: 1;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .page {
+            display: none; /* Strony są ukryte domyślnie */
+        }
+        .page.active {
+            display: block;
+        }
+        
+        /* --- Komponenty (Karty, Przyciski, Formularze) --- */
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            font-size: 1.2em;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger-color); }
+        .btn-danger:hover { background: var(--danger-hover); }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+        .btn-small { padding: 5px 8px; font-size: 0.8em; }
+        
+        input[type="text"], input[type="password"], input[type="email"], select, textarea {
+            width: calc(100% - 24px);
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        textarea { resize: vertical; min-height: 80px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .form-inline { display: flex; gap: 10px; align-items: flex-end; }
+        .form-inline .form-group { flex-grow: 1; }
+        
+        /* --- Tabela --- */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+            vertical-align: middle;
+        }
+        th { background: #f9f9f9; }
+        tr:nth-child(even) { background: #fdfdfd; }
+        .status-light {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 0 8px transparent;
+            transition: background 0.3s, box-shadow 0.3s;
+        }
+        .status-online { background: var(--success-color); box-shadow: 0 0 8px var(--success-color); }
+        .status-offline { background: var(--danger-color); }
+        .status-alert {
+            background: var(--warning-color);
+            box-shadow: 0 0 8px var(--warning-color);
+            animation: pulse-warning 1.5s infinite;
+        }
+        @keyframes pulse-warning {
+            0% { box-shadow: 0 0 6px var(--warning-color); }
+            50% { box-shadow: 0 0 12px var(--warning-color); }
+            100% { box-shadow: 0 0 6px var(--warning-color); }
+        }
+        .clickable { cursor: pointer; color: var(--primary-color); }
+        .clickable:hover { text-decoration: underline; }
+
+        /* --- Login / MFA --- */
+        #login-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            background: var(--bg-color);
+        }
+        #login-card {
+            width: 100%;
+            max-width: 400px;
+        }
+        #login-step-2, #mfa-setup-step-2, #mfa-setup-step-3 { display: none; }
+        #qr-code-container img {
+            display: block;
+            margin: 10px auto;
+            border: 5px solid var(--card-bg);
+        }
+        #backup-codes {
+            background: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre;
+        }
+
+        /* --- Modal (OModal) --- */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: auto;
+            padding: 0;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 900px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            animation: slide-down 0.3s ease-out;
+        }
+        .modal-header {
+            padding: 15px 20px;
+            background: var(--primary-color);
+            color: white;
+            border-bottom: 1px solid #ddd;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { margin: 0; font-size: 1.3em; }
+        .modal-close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-body {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .modal-footer {
+            padding: 15px 20px;
+            background: #f9f9f9;
+            border-top: 1px solid #ddd;
+            border-radius: 0 0 8px 8px;
+            text-align: right;
+        }
+        @keyframes slide-down {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* --- Zakładki w Modalu --- */
+        .tab-navigation {
+            display: flex;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .tab-link {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .tab-link.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* --- Terminal (Xterm.js) --- */
+        #terminal-container {
+            width: 100%;
+            height: 400px;
+            background: #1e1e1e;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        /* Style dla .xterm (dostarczane przez xterm.min.css, ale to jest minimum) */
+        .xterm {
+            height: 100%;
+            width: 100%;
+        }
+        .xterm-viewport {
+            overflow-y: scroll !important; /* Upewnij się, że viewport jest przewijalny */
+        }
+        
+        /* --- Alerty --- */
+        #notification-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 2000;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            transform: translateY(20px);
+        }
+        #notification-toast.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        #notification-toast.error {
+            background: var(--danger-color);
+        }
+        
+        /* --- Ukrywanie elementów UI na podstawie ról --- */
+        .requires-admin,
+        .requires-onboarding-manager,
+        .requires-command-sender {
+            display: none;
+        }
+        
+        /* Dynamiczne klasy dodawane do body */
+        body.role-admin .requires-admin,
+        body.role-admin .requires-onboarding-manager,
+        body.role-admin .requires-command-sender {
+            display: revert; /* 'revert' przywraca domyślny styl (np. block, table-row) */
+        }
+        
+        body.role-onboarding_manager .requires-onboarding-manager,
+        body.role-onboarding_manager .requires-command-sender {
+             display: revert;
+        }
+        
+        body.role-command_sender .requires-command-sender {
+            display: revert;
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- === Strona Logowania (widoczna domyślnie) === -->
+<div id="login-wrapper">
+    <div class="card" id="login-card">
+        <div class="card-header">Witaj w RMM v6</div>
+        
+        <!-- Krok 1: Login / Hasło -->
+        <form id="login-step-1">
+            <div class="form-group">
+                <label for="username">Nazwa użytkownika</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Hasło</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" class="btn" style="width: 100%;">Zaloguj się</button>
+        </form>
+        
+        <!-- Krok 2: Kod MFA -->
+        <form id="login-step-2">
+            <p>Twoje konto jest chronione przez MFA. Wpisz kod z aplikacji uwierzytelniającej.</p>
+            <div class="form-group">
+                <label for="mfa-code">Kod MFA lub Kod Zapasowy</label>
+                <input type="text" id="mfa-code" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn" style="width: 100%;">Weryfikuj</button>
+            <button type="button" class="btn btn-secondary" style="width: 100%; margin-top: 10px;" id="cancel-mfa-btn">Anuluj</button>
+        </form>
+        
+        <p id="login-error" style="color: var(--danger-color); text-align: center; margin-top: 10px;"></p>
+    </div>
+</div>
+
+<!-- === Główna Aplikacja (ukryta domyślnie) === -->
+<div id="sidebar" style="display: none;">
+    <div id="sidebar-header">
+        <h1>RMM v6</h1>
+    </div>
+    <nav id="sidebar-nav">
+        <a href="#dashboard" class="nav-link active">Panel Główny</a>
+        <a href="#admin" class="nav-link requires-onboarding-manager">Panel Admina</a>
+        <a href="#settings" class="nav-link">Ustawienia</a>
+        <!-- Dodaj więcej linków nawigacji tutaj -->
+    </nav>
+    <div id="sidebar-footer">
+        <div id="user-info">
+            Zalogowany jako: <strong id="session-username">...</strong>
+            (<span id="session-role">...</span>)
+        </div>
+        <a href="/logout" class="btn btn-secondary" style="width: 100%; margin-top: 10px;">Wyloguj</a>
+    </div>
+</div>
+
+<div id="main-content" style="display: none;">
+    
+    <!-- === Strona: Panel Główny === -->
+    <div id="page-dashboard" class="page active">
+        <h2>Panel Główny</h2>
+        
+        <!-- Formularz wysyłania poleceń -->
+        <div class="card requires-command-sender">
+            <div class="card-header">Wyślij Polecenie</div>
+            <form id="command-form" class="form-inline">
+                <div class="form-group" style="flex-basis: 30%;">
+                    <label for="command-target-type">Cel</label>
+                    <select id="command-target-type">
+                        <option value="agent">Pojedynczy Agent</option>
+                        <option value="group">Grupa Agentów (TODO)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex-basis: 30%;">
+                    <label for="command-target-id">Wybierz Agenta</label>
+                    <select id="command-target-id" required>
+                        <option value="">Wybierz agenta...</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex-basis: 40%;">
+                    <label for="command-type">Typ Polecenia</label>
+                    <select id="command-type">
+                        <option value="shell">Polecenie Shell</option>
+                        <option value="custom">Własna Komenda</option>
+                    </select>
+                </div>
+            </form>
+            <form id="command-payload-form" class="form-inline" style="margin-top: 10px;">
+                 <div class="form-group" id="shell-input-group" style="flex-grow: 1;">
+                    <label for="command-payload-shell">Polecenie</label>
+                    <input type="text" id="command-payload-shell" placeholder="np. ls -l / lub whoami">
+                </div>
+                <div class="form-group" id="custom-input-group" style="flex-grow: 1; display: none;">
+                    <label for="command-payload-custom">Wybierz Komendę</label>
+                    <select id="command-payload-custom"></select>
+                </div>
+                <button type="submit" class="btn requires-command-sender">Wyślij</button>
+            </form>
+        </div>
+        
+        <!-- Tabela Agentów -->
+        <div class="card">
+            <div class="card-header">Aktywni Agenci</div>
+            <table id="agents-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Nazwa Agenta</th>
+                        <th>Platforma</th>
+                        <th>Metryki (CPU/RAM/Dysk)</th>
+                        <th>Ostatnio Widziany</th>
+                        <th class="requires-admin">Akcje</th>
+                    </tr>
+                </thead>
+                <tbody id="agents-list">
+                    <!-- Dane wstrzykiwane dynamicznie -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Wyniki Poleceń -->
+        <div class="card">
+            <div class="card-header">Historia Poleceń</div>
+            <pre id="command-results" style="max-height: 400px; overflow-y: auto;"></pre>
+        </div>
+    </div>
+    
+    <!-- === Strona: Panel Admina === -->
+    <div id="page-admin" class="page">
+        <h2>Panel Admina</h2>
+        <div class="tab-navigation">
+            <span class="tab-link active" data-tab="admin-agents">Agenci</span>
+            <span class="tab-link requires-admin" data-tab="admin-commands">Własne Komendy (TODO)</span>
+            <span class="tab-link requires-admin" data-tab="admin-groups">Grupy (TODO)</span>
+            <span class="tab-link requires-admin" data-tab="admin-alerts">Alerty (TODO)</span>
+            <span class="tab-link requires-admin" data-tab="admin-tasks">Zadania Cron (TODO)</span>
+            <span class="tab-link requires-admin" data-tab="admin-users">Użytkownicy</span>
+            <span class="tab-link requires-admin" data-tab="admin-audit">Dziennik Audytu (TODO)</span>
+        </div>
+        
+        <!-- Admin: Agenci -->
+        <div id="tab-admin-agents" class="tab-content active">
+            <div class="card">
+                <div class="card-header">Wygeneruj Nowego Agenta</div>
+                <form id="create-agent-form" class="form-inline">
+                    <div class="form-group">
+                        <label for="agent-name">Nazwa Agenta</label>
+                        <input type="text" id="agent-name" required placeholder="np. Serwer-WWW-01">
+                    </div>
+                    <div class="form-group">
+                        <label for="agent-platform">Platforma</label>
+                        <select id="agent-platform">
+                            <option value="linux">Linux (.py)</option>
+                            <option value="windows">Windows (.ps1)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Wygeneruj</button>
+                </form>
+                <div id="new-agent-download" style="display: none; margin-top: 15px;">
+                    <p>Agent wygenerowany! Pobierz skrypt instalacyjny. <strong>Link jest ważny przez 10 minut.</strong></p>
+                    <a href="#" id="download-agent-link" class="btn" target="_blank">Pobierz Skrypt Agenta</a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Zarządzaj Agentami</div>
+                <table id="admin-agents-table">
+                     <thead>
+                        <tr>
+                            <th>Nazwa Agenta</th>
+                            <th>ID Agenta</th>
+                            <th>Klucz API</th>
+                            <th class="requires-admin">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-agents-list"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Admin: Użytkownicy (Feat. 7 i 11) -->
+        <div id="tab-admin-users" class="tab-content requires-admin">
+            <div class="card">
+                <div class="card-header">Utwórz Nowego Użytkownika</div>
+                <form id="create-user-form" class="form-inline">
+                    <div class="form-group"><label>Login</label><input type="text" id="new-user-username" required></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="new-user-email"></div>
+                    <div class="form-group"><label>Hasło</label><input type="password" id="new-user-password" required></div>
+                    <div class="form-group">
+                        <label>Rola</label>
+                        <select id="new-user-role">
+                            <option value="viewer">Viewer</option>
+                            <option value="metric_viewer">Metric Viewer</option>
+                            <option value="command_sender">Command Sender</option>
+                            <option value="onboarding_manager">Onboarding Manager</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Utwórz Użytkownika</button>
+                </form>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">Zarejestrowani Użytkownicy</div>
+                <table id="admin-users-table">
+                     <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Login</th>
+                            <th>Rola</th>
+                            <th>Email</th>
+                            <th>MFA</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-list"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Pozostałe zakładki Admina (TODO) -->
+        <div id="tab-admin-commands" class="tab-content requires-admin">... TODO ...</div>
+        <div id="tab-admin-groups" class="tab-content requires-admin">... TODO ...</div>
+        <div id="tab-admin-alerts" class="tab-content requires-admin">... TODO ...</div>
+        <div id="tab-admin-tasks" class="tab-content requires-admin">... TODO ...</div>
+        <div id="tab-admin-audit" class="tab-content requires-admin">... TODO ...</div>
+    </div>
+    
+    <!-- === Strona: Ustawienia === -->
+    <div id="page-settings" class="page">
+        <h2>Ustawienia</h2>
+        
+        <!-- Ustawienia MFA (Feat. 11) -->
+        <div class="card">
+            <div class="card-header">Uwierzytelnianie Wieloskładnikowe (MFA)</div>
+            
+            <!-- Widok gdy MFA jest WYŁĄCZONE -->
+            <div id="mfa-disabled-view">
+                <p>MFA jest obecnie wyłączone. Zwiększ bezpieczeństwo swojego konta.</p>
+                <button class="btn" id="mfa-setup-start-btn">Włącz MFA</button>
+            </div>
+            
+            <!-- Widok gdy MFA jest WŁĄCZONE -->
+            <div id="mfa-enabled-view" style="display: none;">
+                 <p>MFA jest obecnie <strong>WŁĄCZONE</strong> na Twoim koncie.</p>
+                 <form id="mfa-disable-form">
+                     <p>Aby wyłączyć MFA, wprowadź swoje aktualne hasło.</p>
+                     <div class="form-group" style="max-width: 300px;">
+                        <label>Aktualne Hasło</label>
+                        <input type="password" id="mfa-disable-password" required>
+                     </div>
+                     <button type="submit" class="btn btn-danger">Wyłącz MFA</button>
+                 </form>
+            </div>
+        </div>
+        
+        <!-- TODO: Inne ustawienia, np. zmiana hasła -->
+        
+    </div>
+</div>
+
+<!-- === Modal Szczegółów Agenta (Feat. 1, 3, 4, 8, 10) === -->
+<div id="agent-details-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="agent-modal-title">Szczegóły Agenta</h2>
+            <span class="modal-close" data-dismiss="agent-details-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="tab-navigation">
+                <span class="tab-link active" data-tab="agent-details">Szczegóły</span>
+                <span class="tab-link" data-tab="agent-charts">Metryki Live</span>
+                <span class="tab-link requires-command-sender" data-tab="agent-processes">Procesy (TODO)</span>
+                <span class="tab-link requires-command-sender" data-tab="agent-files">Pliki (TODO)</span>
+                <span class="tab-link requires-command-sender" data-tab="agent-terminal">Terminal</span>
+            </div>
+            
+            <!-- Modal: Zakładka Szczegóły (Feat. 10) -->
+            <div id="tab-agent-details" class="tab-content active">
+                <h4>Informacje Systemowe</h4>
+                <table id="agent-details-table">
+                    <tr><th>Agent ID</th><td id="detail-agent-id"></td></tr>
+                    <tr><th>Wersja Agenta</th><td id="detail-agent-version"></td></tr>
+                    <tr><th>Platforma</th><td id="detail-agent-platform"></td></tr>
+                    <tr><th>System OS</th><td id="detail-agent-os"></td></tr>
+                    <tr><th>Uptime</th><td id="detail-agent-uptime"></td></tr>
+                </table>
+                <h4>Statystyki Sieciowe</h4>
+                <table id="agent-network-table">
+                    <tr><th>Wysłane Dane</th><td id="detail-net-sent"></td></tr>
+                    <tr><th>Odebrane Dane</th><td id="detail-net-recv"></td></tr>
+                </table>
+            </div>
+            
+            <!-- Modal: Zakładka Metryki (Feat. 1) -->
+            <div id="tab-agent-charts" class="tab-content">
+                <div style="width: 100%; height: 300px;">
+                    <canvas id="agent-cpu-chart"></canvas>
+                </div>
+                 <div style="width: 100%; height: 300px; margin-top: 20px;">
+                    <canvas id="agent-ram-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Modal: Zakładka Procesy (Feat. 4) -->
+            <div id="tab-agent-processes" class="tab-content">
+                <button class="btn btn-small" id="refresh-processes-btn">Odśwież Listę Procesów</button>
+                <pre id="processes-output" style="max-height: 400px; overflow-y: auto; margin-top: 10px;">... TODO: Implementacja tabeli procesów z przyciskiem "Zabij" ...</pre>
+            </div>
+            
+            <!-- Modal: Zakładka Pliki (Feat. 3) -->
+            <div id="tab-agent-files" class="tab-content">
+                ... TODO: Implementacja prostego menedżera plików ...
+            </div>
+            
+            <!-- Modal: Zakładka Terminal (Feat. 8) -->
+            <div id="tab-agent-terminal" class="tab-content">
+                <p>Połączono z interaktywną powłoką. Wpisz 'exit', aby zamknąć.</p>
+                <div id="terminal-container"></div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- === Modal Konfiguracji MFA (Feat. 11) === -->
+<div id="mfa-setup-modal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>Konfiguruj Uwierzytelnianie (MFA)</h2>
+            <span class="modal-close" data-dismiss="mfa-setup-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            
+            <!-- Krok 1: Pokaż QR -->
+            <div id="mfa-setup-step-1">
+                <p>Zeskanuj poniższy kod QR za pomocą aplikacji uwierzytelniającej (np. Google Authenticator).</p>
+                <div id="qr-code-container"></div>
+                <p>Lub wprowadź klucz ręcznie:</p>
+                <pre id="manual-setup-key" style="text-align: center; font-size: 1.2em;"></pre>
+                <button class="btn" id="mfa-setup-next-btn" style="width: 100%;">Dalej</button>
+            </div>
+            
+            <!-- Krok 2: Weryfikuj kod -->
+            <div id="mfa-setup-step-2">
+                <p>Wprowadź 6-cyfrowy kod z aplikacji, aby potwierdzić.</p>
+                <form id="mfa-verify-form">
+                    <div class="form-group">
+                        <label>Kod Weryfikacyjny</label>
+                        <input type="text" id="mfa-verify-code" required maxlength="6" style="text-align: center; font-size: 1.2em;">
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%;">Weryfikuj i Aktywuj</button>
+                </form>
+            </div>
+            
+            <!-- Krok 3: Pokaż kody zapasowe -->
+            <div id="mfa-setup-step-3">
+                <p><strong>MFA zostało aktywowane!</strong></p>
+                <p>Zapisz poniższe kody zapasowe w bezpiecznym miejscu. Posłużą do odzyskania konta, jeśli utracisz dostęp do aplikacji.</p>
+                <pre id="backup-codes"></pre>
+                <button class="btn modal-close" data-dismiss="mfa-setup-modal" style="width: 100%;">Zapisano, zamknij</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- === Toast (Powiadomienia) === -->
+<div id="notification-toast"></div>
+
+
+<script>
+// Zmienne globalne i stan aplikacji
+let socket;
+const state = {
+    agents: {},
+    customCommands: {},
+    session: {},
+    modals: {},
+    charts: { cpu: null, ram: null },
+    term: null // Obiekt terminala Xterm.js
+};
+
+// Mapowanie ról (dla UI)
+const ROLES_HIERARCHY = {
+    'viewer': 1,
+    'metric_viewer': 2,
+    'command_sender': 3,
+    'onboarding_manager': 4,
+    'admin': 5
+};
+
+// Funkcja pomocnicza do wysyłania zapytań API
+async function apiRequest(endpoint, options = {}) {
+    options.headers = options.headers || {};
+    options.headers['Content-Type'] = 'application/json';
+    
+    if (options.body) {
+        options.body = JSON.stringify(options.body);
+    }
+
+    try {
+        const response = await fetch(endpoint, options);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+        if (response.status === 204) return null; // No Content
+        return await response.json();
+    } catch (error) {
+        console.error(`API Request Error to ${endpoint}:`, error);
+        showToast(error.message, 'error');
+        throw error; // Rzuć błąd dalej, aby obsłużyć go w UI
+    }
+}
+
+// Funkcja pomocnicza do pokazywania powiadomień
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('notification-toast');
+    toast.textContent = message;
+    toast.className = type === 'error' ? 'error' : '';
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// === Logika Nawigacji ===
+function navigateTo(pageId) {
+    document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+    document.getElementById(`page-${pageId}`).classList.add('active');
+    
+    document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
+        link.classList.toggle('active', link.hash === `#${pageId}`);
+    });
+}
+
+function setupNavigation() {
+    document.querySelectorAll('#sidebar-nav .nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const pageId = e.target.hash.substring(1);
+            navigateTo(pageId);
+        });
+    });
+
+    document.querySelectorAll('.tab-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            const tabId = e.target.dataset.tab;
+            // Wyłącz aktywne zakładki i treści w tej samej grupie
+            const tabGroup = e.target.closest('.modal-body, .page');
+            tabGroup.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove('active'));
+            tabGroup.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+            
+            // Aktywuj klikniętą
+            e.target.classList.add('active');
+            tabGroup.querySelector(`#tab-${tabId}`).classList.add('active');
+        });
+    });
+}
+
+// === Logika Modali ===
+function setupModals() {
+    state.modals['agent-details-modal'] = document.getElementById('agent-details-modal');
+    state.modals['mfa-setup-modal'] = document.getElementById('mfa-setup-modal');
+
+    document.querySelectorAll('.modal-close, [data-dismiss]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const modalId = e.target.closest('.modal').id;
+            closeModal(modalId);
+        });
+    });
+
+    // Zamykanie modala po kliknięciu na tło
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            closeModal(e.target.id);
+        }
+    });
+}
+
+function openModal(modalId) {
+    if (state.modals[modalId]) {
+        state.modals[modalId].classList.add('active');
+    }
+}
+
+function closeModal(modalId) {
+    if (state.modals[modalId]) {
+        state.modals[modalId].classList.remove('active');
+        
+        // Specjalna logika czyszczenia dla modali
+        if (modalId === 'agent-details-modal') {
+            // Zatrzymaj terminal, jeśli był aktywny
+            if (state.term) {
+                socket.emit('web_shell_pty_input', { input: 'exit\n' });
+                state.term.dispose();
+                state.term = null;
+            }
+            // Zatrzymaj wykresy
+            if (state.charts.cpu) state.charts.cpu.destroy();
+            if (state.charts.ram) state.charts.ram.destroy();
+            state.charts.cpu = null;
+            state.charts.ram = null;
+        }
+    }
+}
+
+// === Logika Strony Logowania ===
+function setupLoginFlow() {
+    const loginWrapper = document.getElementById('login-wrapper');
+    const mainApp = document.getElementById('main-content');
+    const sidebar = document.getElementById('sidebar');
+    const loginError = document.getElementById('login-error');
+    
+    // Pokaż/Ukryj główną aplikację
+    function showMainApp(show) {
+        loginWrapper.style.display = show ? 'none' : 'flex';
+        mainApp.style.display = show ? 'block' : 'none';
+        sidebar.style.display = show ? 'flex' : 'none';
+    }
+
+    // Sprawdź, czy sesja już istnieje (np. po odświeżeniu)
+    async function checkSession() {
+        try {
+            const data = await apiRequest('/api/get_user_session');
+            state.session = data;
+            initSocket(); // Sesja istnieje, połącz WebSocket
+            showMainApp(true);
+            renderUIForRole();
+            loadInitialDashboardData();
+        } catch (error) {
+            // Brak sesji, pokaż logowanie
+            showMainApp(false);
+        }
+    }
+
+    // Krok 1: Logowanie
+    document.getElementById('login-step-1').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError.textContent = '';
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const data = await apiRequest('/login', {
+                method: 'POST',
+                body: { username, password }
+            });
+            
+            if (data.mfa_required) {
+                // Pokaż krok 2 (MFA)
+                document.getElementById('login-step-1').style.display = 'none';
+                document.getElementById('login-step-2').style.display = 'block';
+            } else if (data.success) {
+                // Zalogowano pomyślnie (bez MFA)
+                window.location.reload(); // Najprostszy sposób na pełne przeładowanie stanu
+            }
+        } catch (error) {
+            loginError.textContent = error.message;
+        }
+    });
+
+    // Krok 2: Weryfikacja MFA
+    document.getElementById('login-step-2').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        loginError.textContent = '';
+        const username = document.getElementById('username').value; // Potrzebne do ponownego wysłania
+        const password = document.getElementById('password').value; // Potrzebne do ponownego wysłania
+        const mfa_code = document.getElementById('mfa-code').value;
+
+        try {
+            const data = await apiRequest('/login', {
+                method: 'POST',
+                body: { username, password, mfa_code }
+            });
+
+            if (data.success) {
+                // Zalogowano pomyślnie (z MFA)
+                window.location.reload();
+            }
+        } catch (error) {
+            loginError.textContent = error.message;
+        }
+    });
+    
+    document.getElementById('cancel-mfa-btn').addEventListener('click', () => {
+         document.getElementById('login-step-1').style.display = 'block';
+         document.getElementById('login-step-2').style.display = 'none';
+         loginError.textContent = '';
+    });
+
+    return checkSession; // Zwróć funkcję do wywołania
+}
+
+// === Logika WebSocket ===
+function initSocket() {
+    socket = io(window.location.origin);
+
+    socket.on('connect', () => {
+        console.log('Połączono z serwerem WebSocket!');
+        socket.emit('web_subscribe'); // Zasubskrybuj eventy
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Rozłączono z serwerem WebSocket.');
+        showToast('Rozłączono z serwerem...', 'error');
+    });
+    
+    socket.on('web_subscribed', () => {
+        console.log('Pomyślnie zasubskrybowano eventy panelu.');
+    });
+
+    // --- Obsługa Eventów z Serwera ---
+
+    // Aktualizacja statusu agenta (online/offline)
+    socket.on('agent_status_update', (agentData) => {
+        console.log('Aktualizacja statusu agenta:', agentData);
+        state.agents[agentData.id] = {...(state.agents[agentData.id] || {}), ...agentData};
+        renderAgentsTable();
+    });
+
+    // Aktualizacja metryk
+    socket.on('metrics_update', (data) => {
+        const agentId = data.agent_id;
+        if (state.agents[agentId]) {
+            state.agents[agentId].metrics = data;
+            // Zaktualizuj tylko komórkę w tabeli, aby uniknąć przerenderowania
+            const cell = document.getElementById(`agent-metrics-${agentId}`);
+            if (cell) {
+                cell.textContent = `${data.cpu.toFixed(1)}% / ${data.memory.toFixed(1)}% / ${data.disk.toFixed(1)}%`;
+            }
+            
+            // Zaktualizuj wykres, jeśli modal jest otwarty
+            if (state.modals['agent-details-modal'].classList.contains('active') &&
+                document.getElementById('detail-agent-id').textContent === agentId) {
+                updateAgentCharts(data);
+                updateAgentDetails(agentId); // Do aktualizacji Uptime itp.
+            }
+        }
+    });
+
+    // Nowy wynik polecenia
+    socket.on('new_command_result', (commandData) => {
+        console.log('Otrzymano wynik:', commandData);
+        const timestamp = new Date(commandData.timestamp).toLocaleString();
+        const resultHtml = `
+<div class="result-item">
+    <div class="result-meta">
+        <strong>[${timestamp}]</strong> | Agent: <strong>${commandData.agent_id}</strong> | Użytkownik: ${commandData.user_id || 'System'}
+    </div>
+    <div class="result-command" style="color: var(--primary-color); font-weight: bold;">
+        $ [${commandData.command_type}] ${commandData.command_payload}
+    </div>
+    ${commandData.result.replace(/\n/g, '<br>')}
+    <hr style="border: 0; border-top: 1px dashed #ccc; margin-top: 10px;">
+</div>`;
+        document.getElementById('command-results').insertAdjacentHTML('afterbegin', resultHtml);
+    });
+    
+    socket.on('command_error', (data) => {
+        showToast(`Błąd polecenia: ${data.message}`, 'error');
+    });
+    
+    // Obsługa Terminala
+    socket.on('shell_pty_data', (data) => {
+        if (state.term) {
+            state.term.write(data.data);
+        }
+    });
+}
+
+// === Ładowanie Danych i Renderowanie ===
+
+function renderUIForRole() {
+    document.body.classList.remove('role-admin', 'role-onboarding_manager', 'role-command_sender');
+    if (state.session.role) {
+        document.body.classList.add(`role-${state.session.role}`);
+    }
+    document.getElementById('session-username').textContent = state.session.username;
+    document.getElementById('session-role').textContent = state.session.role;
+    
+    // Ustawienia MFA
+    document.getElementById('mfa-enabled-view').style.display = state.session.mfa_enabled ? 'block' : 'none';
+    document.getElementById('mfa-disabled-view').style.display = state.session.mfa_enabled ? 'none' : 'block';
+}
+
+async function loadInitialDashboardData() {
+    try {
+        const data = await apiRequest('/api/get_dashboard_data');
+        data.agents.forEach(agent => {
+            state.agents[agent.id] = agent;
+        });
+        data.custom_commands.forEach(cmd => {
+            state.customCommands[cmd.id] = cmd;
+        });
+        renderAgentsTable();
+        renderCustomCommandsSelect();
+    } catch (error) {
+        console.error("Nie udało się załadować danych panelu:", error);
+    }
+}
+
+function renderAgentsTable() {
+    const agentsList = document.getElementById('agents-list');
+    const agentSelect = document.getElementById('command-target-id');
+    const adminAgentsList = document.getElementById('admin-agents-list');
+    
+    agentsList.innerHTML = '';
+    agentSelect.innerHTML = '<option value="">Wybierz agenta...</option>';
+    adminAgentsList.innerHTML = '';
+    
+    const sortedAgents = Object.values(state.agents).sort((a, b) => a.name.localeCompare(b.name));
+
+    sortedAgents.forEach(agent => {
+        const statusClass = agent.status === 'online' ? (agent.alert_status ? 'status-alert' : 'status-online') : 'status-offline';
+        const metrics = agent.metrics || { cpu: 0, memory: 0, disk: 0 };
+        const metricsText = `${metrics.cpu.toFixed(1)}% / ${metrics.memory.toFixed(1)}% / ${metrics.disk.toFixed(1)}%`;
+        
+        // --- Główna Tabela ---
+        const row = `
+            <tr id="agent-row-${agent.id}">
+                <td><span class="status-light ${statusClass}"></span> ${agent.status}</td>
+                <td class="clickable agent-name" data-agent-id="${agent.id}">${agent.name}</td>
+                <td>${agent.platform || 'N/A'}</td>
+                <td id="agent-metrics-${agent.id}">${agent.status === 'online' ? metricsText : 'N/A'}</td>
+                <td>${new Date(agent.last_seen).toLocaleString()}</td>
+                <td class="requires-admin">
+                    <button class="btn btn-danger btn-small delete-agent-btn" data-agent-id="${agent.id}">Usuń</button>
+                </td>
+            </tr>
+        `;
+        agentsList.insertAdjacentHTML('beforeend', row);
+
+        // --- Tabela Admina ---
+         const adminRow = `
+            <tr>
+                <td>${agent.name}</td>
+                <td><code>${agent.id}</code></td>
+                <td><code>${agent.api_key.substring(0, 8)}...</code></td>
+                <td class="requires-admin">
+                     <button class="btn btn-danger btn-small delete-agent-btn" data-agent-id="${agent.id}">Usuń</button>
+                </td>
+            </tr>
+        `;
+        adminAgentsList.insertAdjacentHTML('beforeend', adminRow);
+
+        // --- Lista wyboru (Select) ---
+        if (agent.status === 'online') {
+            const option = `<option value="${agent.id}">${agent.name} (${agent.id.substring(0, 6)}...)</option>`;
+            agentSelect.insertAdjacentHTML('beforeend', option);
+        }
+    });
+}
+
+function renderCustomCommandsSelect() {
+    const select = document.getElementById('command-payload-custom');
+    select.innerHTML = '';
+    Object.values(state.customCommands).forEach(cmd => {
+        const option = `<option value="${cmd.name}">${cmd.name} (${cmd.platform})</option>`;
+        select.insertAdjacentHTML('beforeend', option);
+    });
+}
+
+// === Logika Wysyłania Poleceń ===
+function setupCommandForms() {
+    const typeSelect = document.getElementById('command-type');
+    const shellGroup = document.getElementById('shell-input-group');
+    const customGroup = document.getElementById('custom-input-group');
+
+    typeSelect.addEventListener('change', () => {
+        const isShell = typeSelect.value === 'shell';
+        shellGroup.style.display = isShell ? 'block' : 'none';
+        customGroup.style.display = isShell ? 'none' : 'block';
+    });
+
+    document.getElementById('command-payload-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const targetType = document.getElementById('command-target-type').value;
+        const targetId = document.getElementById('command-target-id').value;
+        const commandType = document.getElementById('command-type').value;
+        
+        let commandPayload;
+        if (commandType === 'shell') {
+            commandPayload = document.getElementById('command-payload-shell').value;
+        } else {
+            commandPayload = document.getElementById('command-payload-custom').value;
+        }
+
+        if (!targetId || !commandPayload) {
+            showToast('Wybierz cel i wpisz polecenie', 'error');
+            return;
+        }
+
+        // TODO: Obsługa grup
+        if (targetType === 'agent') {
+            socket.emit('web_execute_command', {
+                agent_id: targetId,
+                command_type: commandType,
+                command_payload: commandPayload
+            });
+        }
+        
+        document.getElementById('command-payload-shell').value = '';
+    });
+}
+
+// === Logika Panelu Admina ===
+function setupAdminPanel() {
+    // --- Tworzenie Agenta ---
+    document.getElementById('create-agent-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('agent-name').value;
+        const platform = document.getElementById('agent-platform').value;
+        
+        try {
+            const data = await apiRequest('/api/admin/agents', {
+                method: 'POST',
+                body: { name, platform }
+            });
+            
+            showToast(`Agent ${name} utworzony pomyślnie!`, 'success');
+            state.agents[data.agent.id] = data.agent;
+            renderAgentsTable(); // Odśwież obie tabele
+            
+            // Pokaż link do pobrania
+            document.getElementById('download-agent-link').href = `/download_agent/${data.download_token}`;
+            document.getElementById('new-agent-download').style.display = 'block';
+            document.getElementById('create-agent-form').reset();
+            
+        } catch (error) {
+            console.error("Błąd tworzenia agenta:", error);
+        }
+    });
+    
+    // --- Usuwanie Agenta (delegacja zdarzeń) ---
+    document.body.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-agent-btn')) {
+            const agentId = e.target.dataset.agentId;
+            const agentName = state.agents[agentId]?.name || agentId;
+            
+            if (confirm(`Czy na pewno chcesz usunąć agenta "${agentName}"? Spowoduje to usunięcie agenta i całej jego historii poleceń.`)) {
+                try {
+                    await apiRequest(`/api/admin/agents/${agentId}`, { method: 'DELETE' });
+                    delete state.agents[agentId];
+                    renderAgentsTable();
+                    showToast(`Agent ${agentName} usunięty.`, 'success');
+                } catch (error) {
+                     console.error("Błąd usuwania agenta:", error);
+                }
+            }
+        }
+    });
+    
+    // --- Zarządzanie Użytkownikami ---
+    document.getElementById('create-user-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const body = {
+            username: document.getElementById('new-user-username').value,
+            password: document.getElementById('new-user-password').value,
+            role: document.getElementById('new-user-role').value,
+            email: document.getElementById('new-user-email').value,
+        };
+        try {
+            await apiRequest('/api/admin/users', { method: 'POST', body });
+            showToast(`Użytkownik ${body.username} utworzony.`, 'success');
+            e.target.reset();
+            loadAdminUsers(); // Odśwież listę
+        } catch (error) {
+            console.error("Błąd tworzenia użytkownika:", error);
+        }
+    });
+    
+    // Delegacja zdarzeń dla przycisków na liście użytkowników
+    document.getElementById('admin-users-list').addEventListener('click', async (e) => {
+        const userId = e.target.dataset.userId;
+        if (!userId) return;
+
+        // Resetowanie hasła
+        if (e.target.classList.contains('reset-password-btn')) {
+            const newPassword = prompt(`Wprowadź nowe hasło dla użytkownika ${userId}:`);
+            if (newPassword) {
+                try {
+                    await apiRequest(`/api/admin/users/${userId}`, {
+                        method: 'PUT',
+                        body: { password: newPassword }
+                    });
+                    showToast('Hasło zresetowane.', 'success');
+                } catch (error) { console.error("Błąd resetu hasła:", error); }
+            }
+        }
+        
+        // Wyłączenie MFA
+        if (e.target.classList.contains('disable-mfa-btn')) {
+            if (confirm(`Czy na pewno chcesz wyłączyć MFA dla użytkownika ${userId}?`)) {
+                 try {
+                    await apiRequest('/api/admin/mfa/disable_for_user', {
+                        method: 'POST',
+                        body: { user_id: parseInt(userId) }
+                    });
+                    showToast('MFA wyłączone.', 'success');
+                    loadAdminUsers(); // Odśwież
+                } catch (error) { console.error("Błąd wyłączania MFA:", error); }
+            }
+        }
+        
+        // Usunięcie użytkownika
+        if (e.target.classList.contains('delete-user-btn')) {
+            if (confirm(`Czy na pewno chcesz usunąć użytkownika ${userId}?`)) {
+                 try {
+                    await apiRequest(`/api/admin/users/${userId}`, { method: 'DELETE' });
+                    showToast('Użytkownik usunięty.', 'success');
+                    loadAdminUsers(); // Odśwież
+                } catch (error) { console.error("Błąd usuwania użytkownika:", error); }
+            }
+        }
+    });
+
+    // Załaduj użytkowników, gdy zakładka staje się widoczna
+    new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+            loadAdminUsers();
+        }
+    }).observe(document.getElementById('tab-admin-users'));
+}
+
+async function loadAdminUsers() {
+    const list = document.getElementById('admin-users-list');
+    list.innerHTML = '<tr><td colspan="6">Ładowanie...</td></tr>';
+    try {
+        const users = await apiRequest('/api/admin/users');
+        list.innerHTML = '';
+        users.forEach(user => {
+            list.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${user.role}</td>
+                    <td>${user.email || 'N/A'}</td>
+                    <td>${user.mfa_enabled ? 'Włączone' : 'Wyłączone'}</td>
+                    <td>
+                        <button class="btn btn-secondary btn-small reset-password-btn" data-user-id="${user.id}">Resetuj Hasło</button>
+                        ${user.mfa_enabled ? `<button class="btn btn-warning btn-small disable-mfa-btn" data-user-id="${user.id}">Wyłącz MFA</button>` : ''}
+                        <button class="btn btn-danger btn-small delete-user-btn" data-user-id="${user.id}">Usuń</button>
+                    </td>
+                </tr>
+            `);
+        });
+    } catch (error) {
+        list.innerHTML = '<tr><td colspan="6">Błąd ładowania użytkowników.</td></tr>';
+    }
+}
+
+
+// === Logika Modala Agenta ===
+function setupAgentModal() {
+    // Delegacja otwierania modala
+    document.getElementById('agents-list').addEventListener('click', (e) => {
+        if (e.target.classList.contains('agent-name')) {
+            const agentId = e.target.dataset.agentId;
+            openAgentModal(agentId);
+        }
+    });
+}
+
+function openAgentModal(agentId) {
+    const agent = state.agents[agentId];
+    if (!agent) return;
+
+    document.getElementById('agent-modal-title').textContent = `Szczegóły Agenta: ${agent.name}`;
+    
+    // Aktywuj pierwszą zakładkę
+    document.querySelectorAll('#agent-details-modal .tab-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('#agent-details-modal .tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('#agent-details-modal .tab-link[data-tab="agent-details"]').classList.add('active');
+    document.querySelector('#agent-details-modal #tab-agent-details').classList.add('active');
+    
+    updateAgentDetails(agentId);
+    openModal('agent-details-modal');
+
+    // Inicjalizuj wykresy (Feat. 1)
+    initAgentCharts();
+    
+    // Inicjalizuj Terminal (Feat. 8)
+    initAgentTerminal(agentId);
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+function formatUptime(seconds) {
+    const d = Math.floor(seconds / (3600*24));
+    const h = Math.floor(seconds % (3600*24) / 3600);
+    const m = Math.floor(seconds % 3600 / 60);
+    return `${d} dni, ${h} godz, ${m} min`;
+}
+
+function updateAgentDetails(agentId) {
+    const agent = state.agents[agentId];
+    if (!agent) return;
+    
+    document.getElementById('detail-agent-id').textContent = agent.id;
+    document.getElementById('detail-agent-version').textContent = agent.agent_version || 'N/A';
+    document.getElementById('detail-agent-platform').textContent = agent.platform || 'N/A';
+    document.getElementById('detail-agent-os').textContent = agent.agent_os_details || 'N/A';
+    
+    if(agent.metrics) {
+        document.getElementById('detail-agent-uptime').textContent = formatUptime(agent.metrics.uptime_seconds);
+        document.getElementById('detail-net-sent').textContent = formatBytes(agent.metrics.net_bytes_sent);
+        document.getElementById('detail-net-recv').textContent = formatBytes(agent.metrics.net_bytes_recv);
+    }
+}
+
+// --- Logika Wykresów (Feat. 1) ---
+function initAgentCharts() {
+    const cpuCtx = document.getElementById('agent-cpu-chart').getContext('2d');
+    const ramCtx = document.getElementById('agent-ram-chart').getContext('2d');
+    
+    const chartOptions = {
+        scales: { y: { beginAtZero: true, max: 100 } },
+        animation: { duration: 300 },
+        maintainAspectRatio: false,
+    };
+    
+    state.charts.cpu = new Chart(cpuCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'CPU %', data: [], borderColor: 'rgb(255, 99, 132)', tension: 0.1 }] },
+        options: chartOptions
+    });
+    state.charts.ram = new Chart(ramCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'RAM %', data: [], borderColor: 'rgb(54, 162, 235)', tension: 0.1 }] },
+        options: chartOptions
+    });
+}
+
+function updateAgentCharts(metrics) {
+    const now = new Date().toLocaleTimeString();
+    
+    [state.charts.cpu, state.charts.ram].forEach(chart => {
+        if (!chart) return;
+        chart.data.labels.push(now);
+        if (chart.data.labels.length > 20) { // Ogranicz liczbę punktów
+            chart.data.labels.shift();
+            chart.data.datasets[0].data.shift();
+        }
+    });
+    
+    state.charts.cpu.data.datasets[0].data.push(metrics.cpu);
+    state.charts.ram.data.datasets[0].data.push(metrics.memory);
+    
+    state.charts.cpu.update('none'); // 'none' dla płynniejszej aktualizacji
+    state.charts.ram.update('none');
+}
+
+// --- Logika Terminala (Feat. 8) ---
+function initAgentTerminal(agentId) {
+    const termContainer = document.getElementById('terminal-container');
+    if (!termContainer) return;
+    
+    // Wyczyść stary terminal, jeśli istnieje
+    if (state.term) {
+        state.term.dispose();
+    }
+    termContainer.innerHTML = ''; // Wyczyść kontener
+
+    // Czekaj, aż zakładka terminala będzie widoczna
+    new IntersectionObserver((entries, observer) => {
+        if (entries[0].isIntersecting) {
+            observer.disconnect(); // Uruchom tylko raz
+            
+            if (state.term) return; // Już zainicjowany
+            
+            state.term = new Terminal({
+                cursorBlink: true,
+                rows: 20
+            });
+            const fitAddon = new FitAddon.FitAddon();
+            state.term.loadAddon(fitAddon);
+            state.term.open(termContainer);
+            fitAddon.fit();
+            
+            // Wyślij sygnał startu do serwera
+            socket.emit('web_shell_pty_start', { agent_id: agentId });
+
+            // Obsługa wprowadzania danych
+            state.term.onData(data => {
+                socket.emit('web_shell_pty_input', { input: data });
+            });
+        }
+    }).observe(document.getElementById('tab-agent-terminal'));
+}
+
+// === Logika Ustawień (MFA - Feat. 11) ===
+function setupSettingsPage() {
+    
+    // --- Włączanie MFA ---
+    document.getElementById('mfa-setup-start-btn').addEventListener('click', async () => {
+        try {
+            const data = await apiRequest('/api/mfa/generate_setup', { method: 'POST' });
+            
+            // Pokaż modal i wypełnij dane
+            document.getElementById('qr-code-container').innerHTML = `<img src="${data.qr_code_data_url}" alt="QR Code">`;
+            document.getElementById('manual-setup-key').textContent = data.manual_setup_key;
+            
+            // Pokaż/ukryj kroki
+            document.getElementById('mfa-setup-step-1').style.display = 'block';
+            document.getElementById('mfa-setup-step-2').style.display = 'none';
+            document.getElementById('mfa-setup-step-3').style.display = 'none';
+            
+            openModal('mfa-setup-modal');
+        } catch (error) {
+            showToast('Nie udało się rozpocząć konfiguracji MFA', 'error');
+        }
+    });
+
+    document.getElementById('mfa-setup-next-btn').addEventListener('click', () => {
+        document.getElementById('mfa-setup-step-1').style.display = 'none';
+        document.getElementById('mfa-setup-step-2').style.display = 'block';
+    });
+
+    // --- Weryfikacja kodu MFA ---
+    document.getElementById('mfa-verify-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const mfa_code = document.getElementById('mfa-verify-code').value;
+        try {
+            const data = await apiRequest('/api/mfa/verify_setup', {
+                method: 'POST',
+                body: { mfa_code }
+            });
+            
+            // Pokaż kody zapasowe
+            document.getElementById('backup-codes').textContent = data.backup_codes.join('\n');
+            document.getElementById('mfa-setup-step-2').style.display = 'none';
+            document.getElementById('mfa-setup-step-3').style.display = 'block';
+            
+            // Zaktualizuj stan sesji i UI
+            state.session.mfa_enabled = true;
+            renderUIForRole();
+            
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    });
+    
+    // --- Wyłączanie MFA ---
+    document.getElementById('mfa-disable-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('mfa-disable-password').value;
+        if (!confirm("Czy na pewno chcesz wyłączyć MFA?")) return;
+        
+        try {
+            await apiRequest('/api/mfa/disable', {
+                method: 'POST',
+                body: { password }
+            });
+            showToast('MFA zostało wyłączone.', 'success');
+            document.getElementById('mfa-disable-password').value = '';
+            
+            // Zaktualizuj stan sesji i UI
+            state.session.mfa_enabled = false;
+            renderUIForRole();
+
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    });
+}
+
+
+// === Główna funkcja inicjalizująca ===
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Sprawdź, czy jesteśmy zalogowani
+    const checkSession = setupLoginFlow();
+    const sessionExists = await checkSession();
+    
+    // 2. Jeśli tak, zainicjuj resztę aplikacji
+    // (Jeśli nie, setupLoginFlow zatrzyma się na ekranie logowania)
+    if (sessionExists !== false) { // false jest zwracane tylko przy błędzie
+        setupNavigation();
+        setupModals();
+        setupCommandForms();
+        setupAdminPanel();
+        setupAgentModal();
+        setupSettingsPage();
+    }
+});
+
+</script>
+
+</body>
+</html>
