@@ -1,0 +1,14 @@
+flask
+flask-socketio
+flask-login
+flask-talisman
+eventlet
+apscheduler
+pyotp
+qrcode
+itsdangerous
+cryptography
+paramiko
+psutil
+requests
+socketio-client
